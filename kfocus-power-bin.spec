@@ -32,7 +32,7 @@ Kubuntu Focus power and fan tools for selecting power profiles, processor
 frequency settings, and fan settings.
 
 %prep
-%autosetup -n kfocus-source-%{commit}
+%autosetup -n kfocus-source-%{commit} -p1
 
 %build
 (cd package-power-bin/kfocus-fand && ./build.sh)
