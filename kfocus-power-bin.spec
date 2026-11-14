@@ -2,12 +2,15 @@
 
 Name:           kfocus-power-bin
 Version:        26.04.7
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Power profile, processor frequency, and fan controls
 License:        GPL-2.0-or-later
 URL:            https://github.com/eeickmeyer/kfocus-source
 Source0:        https://github.com/eeickmeyer/kfocus-source/archive/%{commit}.tar.gz
+Source1:        kfocus-power-profile
 Patch0:         kfocus-power-bin-cpupower.patch
+Patch1:         kfocus-power-bin-fand-driver.patch
+Patch2:         kfocus-power-bin-power-profile.patch
 BuildRequires:  cmake >= 4.2
 BuildRequires:  extra-cmake-modules
 BuildRequires:  gcc
@@ -24,8 +27,12 @@ BuildRequires:  systemd-devel
 Requires:       kernel-tools
 Requires:       hicolor-icon-theme
 Requires:       kfocus-common
+Requires:       kfocus-hw >= 26.04.6-2
 Requires:       kf6-qqc2-desktop-style
+Requires:       kmod
 Requires:       polkit
+Requires:       ppd-service
+Requires:       systemd
 
 %description
 Kubuntu Focus power and fan tools for selecting power profiles, processor
@@ -48,6 +55,8 @@ install -Dpm 0644 package-power-bin/debian/copyright \
     %{buildroot}%{_licensedir}/%{name}/copyright
 install -Dpm 0755 package-power-bin/kfocus-fand/kfocus-fand \
     %{buildroot}%{_prefix}/lib/kfocus/bin/kfocus-fand
+install -Dpm 0755 %{SOURCE1} \
+    %{buildroot}%{_prefix}/lib/kfocus/bin/kfocus-power-profile
 for utility in kfocus-fan-set kfocus-power-set kfocus-pstate kfocus-pstate-set; do
     install -Dpm 0755 "package-power-bin/usr/lib/kfocus/bin/${utility}" \
         "%{buildroot}%{_prefix}/lib/kfocus/bin/${utility}"
@@ -90,6 +99,23 @@ ln -s %{_prefix}/lib/kfocus/bin/kfocus-pstate \
 
 %post
 %systemd_post kfocus-fand.service
+if [ "$1" -eq 1 ] && [ -f %{_datadir}/kfocus/kfocus_fand.d/fan_profile_db ]; then
+    systemctl enable kfocus-fand.service || exit 1
+    if [ -d /run/systemd/system ]; then
+        systemctl daemon-reload || exit 1
+        systemctl start kfocus-fand.service || exit 1
+    fi
+fi
+
+# Migrate installations made before the daemon was enabled.
+%triggerun -- kfocus-power-bin < 26.04.7-2
+if [ "$1" -gt 0 ] && [ -f %{_datadir}/kfocus/kfocus_fand.d/fan_profile_db ]; then
+    systemctl enable kfocus-fand.service || exit 1
+    if [ -d /run/systemd/system ]; then
+        systemctl daemon-reload || exit 1
+        systemctl start kfocus-fand.service || exit 1
+    fi
+fi
 
 %preun
 %systemd_preun kfocus-fand.service
@@ -100,6 +126,7 @@ ln -s %{_prefix}/lib/kfocus/bin/kfocus-pstate \
 %files
 %license %{_licensedir}/%{name}/copyright
 %{_prefix}/lib/kfocus/bin/kfocus-power-bin
+%{_prefix}/lib/kfocus/bin/kfocus-power-profile
 %{_prefix}/lib/kfocus/bin/kfocus-fand
 %{_prefix}/lib/kfocus/bin/kfocus-fan-set
 %{_prefix}/lib/kfocus/bin/kfocus-power-set
@@ -120,6 +147,10 @@ ln -s %{_prefix}/lib/kfocus/bin/kfocus-pstate \
 %{_datadir}/applications/org.kfocus.power.desktop
 
 %changelog
+* Sat Nov 14 2026 Kubuntu Focus Team <support@kfocus.org> - 26.04.7-2
+- Configure and start the fan daemon on supported hardware
+- Use the power-profiles D-Bus API with either TuneD or power-profiles-daemon
+
 * Sat Nov 14 2026 Kubuntu Focus Team <support@kfocus.org> - 26.04.7-1
 - Package power and fan controls for Fedora
 - Use Fedora kernel-tools cpupower for CPU frequency controls

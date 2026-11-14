@@ -1,0 +1,35 @@
+#!/bin/bash
+set -e
+
+source /usr/lib/kfocus/lib/common.2.source
+config_code="$(_cm2EchoModelStrFn config_code)"
+
+case "$config_code" in
+    default|generic|xeg2|xeg3|arg1|m2g4|m2g5)
+        profile=dflt
+        ;;
+    m2g6|zrg1)
+        profile=m2g6
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+
+profile_dir=/usr/share/kfocus/kfocus_fand.d
+profile_file="$profile_dir/fan_profile_db"
+profile_source="/usr/lib/kfocus/conf/${profile}-usr_share_kfocus_kfocus_fand.d_fan_profile_db"
+
+if [ ! -f "$profile_source" ]; then
+    echo "Missing fan profile: $profile_source" >&2
+    exit 1
+fi
+
+mkdir -p "$profile_dir"
+if [ ! -e "$profile_file" ] && [ ! -L "$profile_file" ]; then
+    ln -s "$profile_source" "$profile_file"
+fi
+if [ ! -f "$profile_file" ]; then
+    echo "Fan profile is not a valid file: $profile_file" >&2
+    exit 1
+fi

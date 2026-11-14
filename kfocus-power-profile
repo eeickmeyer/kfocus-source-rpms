@@ -1,0 +1,36 @@
+#!/bin/bash
+set -e
+
+service=net.hadess.PowerProfiles
+path=/net/hadess/PowerProfiles
+
+case "${1:-}" in
+    get)
+        if [ "$#" -ne 1 ]; then
+            echo "Usage: $0 get | set PROFILE" >&2
+            exit 2
+        fi
+        result="$(busctl --system get-property "$service" "$path" "$service" ActiveProfile)"
+        case "$result" in
+            's "power-saver"') echo power-saver ;;
+            's "balanced"') echo balanced ;;
+            's "performance"') echo performance ;;
+            *) echo "Unexpected power profile response: $result" >&2; exit 1 ;;
+        esac
+        ;;
+    set)
+        if [ "$#" -ne 2 ]; then
+            echo "Usage: $0 get | set PROFILE" >&2
+            exit 2
+        fi
+        case "$2" in
+            power-saver|balanced|performance) ;;
+            *) echo "Unsupported power profile: $2" >&2; exit 2 ;;
+        esac
+        exec busctl --system set-property "$service" "$path" "$service" ActiveProfile s "$2"
+        ;;
+    *)
+        echo "Usage: $0 get | set PROFILE" >&2
+        exit 2
+        ;;
+esac

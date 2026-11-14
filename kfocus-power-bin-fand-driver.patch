@@ -1,0 +1,16 @@
+diff --git a/package-power-bin/usr/lib/systemd/system/kfocus-fand.service b/package-power-bin/usr/lib/systemd/system/kfocus-fand.service
+index 6476e85..b81e56e 100644
+--- a/package-power-bin/usr/lib/systemd/system/kfocus-fand.service
++++ b/package-power-bin/usr/lib/systemd/system/kfocus-fand.service
+@@ -1,10 +1,10 @@
+ [Unit]
+ Description=KFocus fan control daemon
+-ConditionPathExists=/dev/tuxedo_io
+ ConditionPathExists=/usr/share/kfocus/kfocus_fand.d/fan_profile_db
+ 
+ [Service]
+ Type=notify-reload
++ExecStartPre=/usr/sbin/modprobe tuxedo_io
+ ExecStart=/usr/lib/kfocus/bin/kfocus-fand
+ WatchdogSec=12
+ Restart=on-failure

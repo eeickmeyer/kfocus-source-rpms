@@ -1,0 +1,188 @@
+diff --git a/package-power-bin/src/Main.qml b/package-power-bin/src/Main.qml
+index 6cdd85e..6f5d7e9 100644
+--- a/package-power-bin/src/Main.qml
++++ b/package-power-bin/src/Main.qml
+@@ -33,32 +33,47 @@ Kirigami.ApplicationWindow {
+       }
+ 
+       Controls.Slider {
++        property bool applying : false
++        property bool setFailed : false
++
+         id       : powerProfileSlider
+         visible  : true
+         enabled  : false
+         value    : 0
+         to       : 2
+         stepSize : 1
++        snapMode : Controls.Slider.SnapAlways
+ 
+         Layout.fillWidth : true
+ 
+-        onValueChanged : {
++        function setProfile() {
++          let profiles = ['power-saver', 'balanced', 'performance'];
++          applying = true;
++          setFailed = false;
++          powerProfileMessage.visible = false;
++          enabled = false;
+           readPowerProfileTimer.stop();
+-          readPowerProfileEngine.ignoreResult();
+-          switch ( value ) {
+-          case 0:
+-            setPowerProfileEngine.exec('powerprofilesctl set power-saver');
+-            break;
+-          case 1:
+-            setPowerProfileEngine.exec('powerprofilesctl set balanced');
+-            break;
+-          case 2:
+-            setPowerProfileEngine.exec('powerprofilesctl set performance');
+-            break;
+-          }
++          setPowerProfileEngine.exec(root.binDir + '/kfocus-power-profile set '
++            + profiles[value] + ' 2>&1 || echo "Power profile change failed"');
++        }
++
++        onMoved : {
++          if (!pressed && enabled) setProfile();
++        }
++
++        onPressedChanged : {
++          if (!pressed && enabled) setProfile();
+         }
+       }
+ 
++      Kirigami.InlineMessage {
++        id      : powerProfileMessage
++        visible : false
++        text    : 'Unable to read the power profile.'
++
++        Layout.fillWidth : true
++      }
++
+       Rectangle {
+         visible : powerProfileSlider.visible
+         color   : 'transparent'
+@@ -439,6 +454,7 @@ Kirigami.ApplicationWindow {
+       id : readPowerProfileEngine
+ 
+       onStdoutChanged : {
++        if (powerProfileSlider.applying) return;
+         switch ( stdout.trim() ) {
+         case 'performance':
+           powerProfileSlider.value = 2;
+@@ -449,7 +465,14 @@ Kirigami.ApplicationWindow {
+         case 'power-saver':
+           powerProfileSlider.value = 0;
+           break;
++        default:
++          powerProfileSlider.enabled = false;
++          powerProfileMessage.text = 'Unable to read the power profile. '
++            + 'Check that the power profile service is running.';
++          powerProfileMessage.visible = true;
++          return;
+         }
++        if (!powerProfileSlider.setFailed) powerProfileMessage.visible = false;
+         powerProfileSlider.enabled = true;
+       }
+     }
+@@ -458,6 +481,14 @@ Kirigami.ApplicationWindow {
+       id : setPowerProfileEngine
+ 
+       onStdoutChanged : {
++        powerProfileSlider.applying = false;
++        if (stdout.trim() !== '') {
++          console.error(stdout.trim());
++          powerProfileSlider.setFailed = true;
++          powerProfileMessage.text = 'Unable to change the power profile. '
++            + 'See the application log for details.';
++          powerProfileMessage.visible = true;
++        }
+         readPowerProfileTimer.start();
+       }
+     }
+@@ -470,7 +501,7 @@ Kirigami.ApplicationWindow {
+       repeat           : true
+ 
+       onTriggered : {
+-        readPowerProfileEngine.exec('powerprofilesctl get');
++        readPowerProfileEngine.exec(root.binDir + '/kfocus-power-profile get 2>&1');
+       }
+     }
+ 
+diff --git a/package-power-bin/usr/lib/kfocus/bin/kfocus-pstate b/package-power-bin/usr/lib/kfocus/bin/kfocus-pstate
+index f443733..b0ff084 100755
+--- a/package-power-bin/usr/lib/kfocus/bin/kfocus-pstate
++++ b/package-power-bin/usr/lib/kfocus/bin/kfocus-pstate
+@@ -87,14 +87,7 @@ _runEscFn () {
+ }
+ 
+ _setPowerProfileFn () {
+-  declare _is_on_ac _target_key _msg _current_key \
+-    _mode_list _line _bit_list _search_str _set_key;
+-
+-  if [ -z "${_profilesCtlExe}" ]; then
+-    _cm2WarnStrFn 'Optional power control tool not found. Skipped.';
+-    _cm2SucFn;
+-    return;
+-  fi
++  declare _is_on_ac _target_key _msg _current_key;
+ 
+   _is_on_ac="${1:-y}";
+ 
+@@ -108,35 +101,24 @@ _setPowerProfileFn () {
+   fi
+   _cm2SetMsgFn "${_msg}";
+ 
+-  _mode_list=();
+-  while read -r _line; do
+-    IFS=$' :\n' read -ra _bit_list <<<"${_line}";
+-    if [ "${_bit_list[0]}" = '*' ]; then
+-      _current_key="${_bit_list[1]}";
+-      _bit_list=("${_bit_list[@]:1}");
+-    fi
+-    _mode_list+=("$(xargs <<<"${_bit_list[0]}")");
+-  done < <("${_profilesCtlExe}" list | grep -Ev '^\s*$|^\s*Driver');
+-
+-  _search_str="$(printf '%s\n' "${_mode_list[@]}")";
+-  if grep -Fxq "${_target_key}" <<<"${_search_str}"; then
+-    _set_key="${_target_key}";
+-  else
+-    _cm2WarnStrFn "Target profile ${_target_key} not found. Skipped.";
+-    _cm2SucFn;
+-    return;
++  if ! _current_key="$("${_profilesCtlExe}" get)"; then
++    _cm2WarnStrFn 'Could not read the current power profile.';
++    _cm2WarnFn;
++    return 1;
+   fi
+ 
+-  if [ "${_set_key}" = "${_current_key}" ]; then
+-    _cm2SucStrFn "Set key |${_set_key}| matches current.";
++  if [ "${_target_key}" = "${_current_key}" ]; then
++    _cm2SucStrFn "Set key |${_target_key}| matches current.";
+     _cm2SucFn;
+     return;
+   fi
+ 
+-  if "${_profilesCtlExe}" set "${_set_key}"; then
+-    _cm2SucStrFn "Set profile to |${_set_key}|.";
++  if "${_profilesCtlExe}" set "${_target_key}"; then
++    _cm2SucStrFn "Set profile to |${_target_key}|.";
+   else
+-    _cm2WarnStrFn "Could not set profile |${_set_key}|. Skipped.";
++    _cm2WarnStrFn "Could not set profile |${_target_key}|.";
++    _cm2WarnFn;
++    return 1;
+   fi
+   _cm2SucFn;
+ }
+@@ -441,7 +423,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+     # Disable keyboard controls from pstate, power (#6567)
+     # "_kbdColorSetExe|${_binDir}/kfocus-kb-color-set||optional"
+ 
+-    "_profilesCtlExe|powerprofilesctl||optional"
++    "_profilesCtlExe|${_binDir}/kfocus-power-profile"
+     "_primeExe|prime-select||optional"
+   );
+   if ! _cm2AssignExeVarsFn "${_assign_exe_list[@]}"; then
