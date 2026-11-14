@@ -1,0 +1,116 @@
+--- a/package-power-bin/usr/lib/kfocus/bin/kfocus-power-set
++++ b/package-power-bin/usr/lib/kfocus/bin/kfocus-power-set
+@@ -309,7 +309,7 @@
+ #     profile to calculate or set.
+ #   mode_key   - 'read' to calculate and output frequency profile details,
+ #     'set' to set the CPU to a frequency profile.
+-# Globals   : _cpufreqInfoExe, _altPsaveKey, _nprocExe, _rootDir,
++# Globals   : _cpupowerExe, _altPsaveKey, _nprocExe, _rootDir,
+ #   _isHybridCpu, _pcoreRangeList, _ecoreRangeList
+ # Outputs   : In 'read' mode, outputs a string containing the
+ #   following fields:
+@@ -321,7 +321,8 @@
+ _scanFn () {
+   declare _match_line _mode_key _bit_list _label _up_ratio _down_ratio  \
+     _gov_key _noturbo_int _avail_gov_list _proc_count       \
+-    _proc_idx _set_max_int _hw_freq_list _hw_min_int _hw_max_int        \
++    _proc_idx _set_max_int _hw_freq_dir _hw_min_file _hw_max_file       \
++    _hw_min_int _hw_max_int                                            \
+     _hw_base_file _hw_base_int _param_list _solve_line \
+     _current_pcore_max_int _current_ecore_max_int _psave_key _msg;
+   # _kbdled_int (#6567)
+@@ -343,7 +344,12 @@
+   _gov_key="${_bit_list[3]}";
+   _noturbo_int="${_bit_list[4]}";
+   # _kbdled_int="${_bit_list[5]}"; (#6567)
+-  read -r -a _avail_gov_list < <("${_cpufreqInfoExe}" -g);
++  _hw_freq_dir="${_rootDir}/sys/devices/system/cpu/cpu0/cpufreq";
++  _avail_gov_list=();
++  if [ -r "${_hw_freq_dir}/scaling_available_governors" ]; then
++    read -r -a _avail_gov_list \
++      < "${_hw_freq_dir}/scaling_available_governors";
++  fi
+ 
+   _psave_key='powersave';
+   case "${_mode_key}" in
+@@ -370,11 +376,17 @@
+ 
+   for (( _proc_idx=0; _proc_idx < "${_proc_count}"; _proc_idx++ )); do
+     _set_max_int='';
+-    read -r -a _hw_freq_list \
+-      < <("${_cpufreqInfoExe}" -c "${_proc_idx}" -l);
+-    if [ "${#_hw_freq_list[@]}" = 0 ]; then continue; fi
+-    _hw_min_int="$(_printIntFn "${_hw_freq_list[0]}")";
+-    _hw_max_int="$(_printIntFn "${_hw_freq_list[1]}")";
++    _hw_freq_dir="${_rootDir}/sys/devices/system/cpu/cpu";
++    _hw_freq_dir+="${_proc_idx}/cpufreq";
++    _hw_min_file="${_hw_freq_dir}/cpuinfo_min_freq";
++    _hw_max_file="${_hw_freq_dir}/cpuinfo_max_freq";
++    if [ ! -r "${_hw_min_file}" ] || [ ! -r "${_hw_max_file}" ]; then
++      continue;
++    fi
++    read -r _hw_min_int < "${_hw_min_file}" || continue;
++    read -r _hw_max_int < "${_hw_max_file}" || continue;
++    _hw_min_int="$(_printIntFn "${_hw_min_int}")";
++    _hw_max_int="$(_printIntFn "${_hw_max_int}")";
+ 
+     _hw_base_file="${_rootDir}/sys/devices/system/cpu/cpu";
+     _hw_base_file+="${_proc_idx}/cpufreq/base_frequency";
+@@ -416,7 +428,8 @@
+       if [ "${_gov_key}" = "powersave" ]; then
+         _gov_key="${_psave_key}";
+       fi
+-      if ! "${_cpufreqSetExe}" -c "${_proc_idx}" -g "${_gov_key}"; then
++      if ! "${_cpupowerExe}" -c "${_proc_idx}" frequency-set \
++        -g "${_gov_key}"; then
+         _cm2WarnStrFn "Bad governor set |${_gov_key}| on core |${_proc_idx}|";
+       fi
+       if [ -n "${_set_max_int}" ]; then
+@@ -427,7 +440,8 @@
+           _cm2EchoFn "|${_set_max_int}| above maximum |${_hw_max_int}|";
+           _cm2WarnStrFn 'Value discarded';
+         else
+-          "${_cpufreqSetExe}" -c "${_proc_idx}" -u "${_set_max_int}";
++          "${_cpupowerExe}" -c "${_proc_idx}" frequency-set \
++            -u "${_set_max_int}";
+         fi
+       fi
+     fi
+@@ -456,7 +470,7 @@
+ # Example   : _chkInitCpuFn
+ # Arguments : none
+ # Globals   : _cpuDropFile, _cpuStatusFile, _nprocExe,
+-#   _cpufreqSetExe, _altPsaveKey
++#   _cpupowerExe, _altPsaveKey
+ # Outputs   : none
+ # Returns   : none
+ #
+@@ -525,7 +539,8 @@
+     _proc_count="$("${_nprocExe}")";
+ 
+     for (( _proc_idx=0; _proc_idx < "${_proc_count}"; _proc_idx++ )); do
+-      if ! "${_cpufreqSetExe}" -c "${_proc_idx}" -g "${_altPsaveKey}"; then
++      if ! "${_cpupowerExe}" -c "${_proc_idx}" frequency-set \
++        -g "${_altPsaveKey}"; then
+         _cm2WarnStrFn "Governor |${_altPsaveKey}| NOT set for core |${_proc_idx}";
+         _success_flag='n';
+       fi
+@@ -994,7 +1009,7 @@
+ ## BEGIN Declare and assign global vars {
+ declare _binName _binDir _baseDir _baseName _rootDir \
+   _cpuDropFile _noTurboFile _cpuStatusFile _altPsaveKey \
+-  _cpufreqSetExe _cpufreqInfoExe _nprocExe \
++  _cpupowerExe _nprocExe \
+   _currentModeFile _pcoreRangeFile _ecoreRangeFile _isHybridCpu;
+   # Disable keyboard controls from pstate, power (#6567)
+   # _kbdColorSetExe
+@@ -1026,8 +1041,7 @@
+   _assignList=(
+     # Disable keyboard controls from pstate, power (#6567)
+     # "_kbdColorSetExe|${_binDir}/kfocus-kb-color-set,/usr/lib/kfocus/bin/kfocus-kb-color-set||optional"
+-    '_cpufreqSetExe|cpufreq-set'
+-    '_cpufreqInfoExe|cpufreq-info'
++    '_cpupowerExe|cpupower'
+     '_nprocExe|nproc'
+   );
+   if ! _cm2AssignExeVarsFn "${_assignList[@]}"; then

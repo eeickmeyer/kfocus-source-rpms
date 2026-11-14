@@ -7,6 +7,7 @@ Summary:        Power profile, processor frequency, and fan controls
 License:        GPL-2.0-or-later
 URL:            https://github.com/eeickmeyer/kfocus-source
 Source0:        https://github.com/eeickmeyer/kfocus-source/archive/%{commit}.tar.gz
+Patch0:         kfocus-power-bin-cpupower.patch
 BuildRequires:  cmake >= 4.2
 BuildRequires:  extra-cmake-modules
 BuildRequires:  gcc
@@ -15,12 +16,12 @@ BuildRequires:  kf6-kcoreaddons-devel
 BuildRequires:  kf6-kiconthemes-devel
 BuildRequires:  kf6-kirigami-devel
 BuildRequires:  kf6-ki18n-devel
-BuildRequires:  kf6-qqc2-desktop-style-devel
+BuildRequires:  kf6-qqc2-desktop-style
 BuildRequires:  pkgconf-pkg-config
 BuildRequires:  qt6-qtbase-devel
 BuildRequires:  qt6-qtdeclarative-devel
 BuildRequires:  systemd-devel
-Requires:       cpufrequtils
+Requires:       kernel-tools
 Requires:       hicolor-icon-theme
 Requires:       kfocus-common
 Requires:       kf6-qqc2-desktop-style
@@ -121,3 +122,4 @@ ln -s %{_prefix}/lib/kfocus/bin/kfocus-pstate \
 %changelog
 * Sat Nov 14 2026 Kubuntu Focus Team <support@kfocus.org> - 26.04.7-1
 - Package power and fan controls for Fedora
+- Use Fedora kernel-tools cpupower for CPU frequency controls
