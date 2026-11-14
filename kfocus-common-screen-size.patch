@@ -1,0 +1,32 @@
+diff --git a/package-main/usr/lib/kfocus/lib/common.2.source b/package-main/usr/lib/kfocus/lib/common.2.source
+--- a/package-main/usr/lib/kfocus/lib/common.2.source
++++ b/package-main/usr/lib/kfocus/lib/common.2.source
+@@ -313,7 +313,8 @@ _cm2CalcEdpScreenSizeFn () {
+   fi
+ 
+   _screen_diag_int="$(bc <<< \
+-    "sqrt(${_screen_width_int}^2 + ${_screen_height_int}^2)")";
++    "sqrt(${_screen_width_int}^2 + ${_screen_height_int}^2)")" || return 1;
++  [[ "${_screen_diag_int}" =~ ^[0-9]+$ ]] || return 1;
+   echo "${_screen_diag_int}";
+   return 0;
+ }
+@@ -377,10 +378,14 @@ _cm2CalcModelCodeFn () {
+       fi
+       ;;
+     xeg3)
+-      _screen_size_mm="$(_cm2CalcEdpScreenSizeFn || 0 )";
+-      # 15-inch is 380mm
+-      if (( _screen_size_mm > 380 )); then
+-        _code="16${_code}"; else _code="14${_code}";
++      if _screen_size_mm="$(_cm2CalcEdpScreenSizeFn)"; then
++        # 15-inch is 380mm
++        if (( _screen_size_mm > 380 )); then
++          _code="16${_code}"; else _code="14${_code}";
++        fi
++      else
++        _cm2WarnStrFn 'Cannot determine screen size; using generic hardware model.';
++        _code='other';
+       fi
+       ;;
+   esac

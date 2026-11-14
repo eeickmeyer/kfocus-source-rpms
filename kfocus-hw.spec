@@ -2,14 +2,15 @@
 
 Name:           kfocus-hw
 Version:        26.04.6
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        Kubuntu Focus hardware configuration files
 License:        GPL-2.0-or-later
 URL:            https://github.com/eeickmeyer/kfocus-source
 Source0:        https://github.com/eeickmeyer/kfocus-source/archive/%{commit}.tar.gz
 Source1:        kfocus-fand-setup
 BuildArch:      noarch
-Requires:       kfocus-common >= 22.04.9
+Requires:       kfocus-common >= 26.04.12~beta1-2
+Requires(post): kfocus-common >= 26.04.12~beta1-2
 
 %description
 Hardware configuration files and system hints for Kubuntu Focus systems.
@@ -52,6 +53,9 @@ fi
 %{_datadir}/kfocus-hints/
 
 %changelog
+* Sat Nov 14 2026 Kubuntu Focus Team <support@kfocus.org> - 26.04.6-3
+- Require the corrected hardware-detection library before configuration
+
 * Sat Nov 14 2026 Kubuntu Focus Team <support@kfocus.org> - 26.04.6-2
 - Select the fan profile for supported hardware
 

@@ -2,20 +2,23 @@
 
 Name:           kfocus-common
 Version:        26.04.12~beta1
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Common libraries and application menu for Kubuntu Focus tools
 License:        GPL-2.0-or-later
 URL:            https://github.com/eeickmeyer/kfocus-source
 Source0:        https://github.com/eeickmeyer/kfocus-source/archive/%{commit}.tar.gz
+Patch0:         kfocus-common-screen-size.patch
 BuildArch:      noarch
+Requires:       bc
 Requires:       kdialog
+Requires:       v4l-utils
 
 %description
 Common shell and Python libraries, desktop menu data, and icons used by
 Kubuntu Focus tools.
 
 %prep
-%autosetup -n kfocus-source-%{commit}
+%autosetup -n kfocus-source-%{commit} -p1
 
 %build
 
@@ -64,5 +67,8 @@ ln -s %{_prefix}/lib/kfocus/conf/etc_logrotate.d_kfocus \
 %{_sysconfdir}/logrotate.d/kfocus
 
 %changelog
+* Sat Nov 14 2026 Kubuntu Focus Team <support@kfocus.org> - 26.04.12~beta1-2
+- Fix XE Gen 3 screen-size fallback and install its detection tools
+
 * Sat Nov 14 2026 Kubuntu Focus Team <support@kfocus.org> - 26.04.12~beta1-1
 - Package common libraries and menu assets for Fedora
