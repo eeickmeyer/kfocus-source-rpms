@@ -1,0 +1,31 @@
+#!/bin/bash
+set -e
+
+common_lib="${KFOCUS_COMMON_LIB:-/usr/lib/kfocus/lib/common.2.source}"
+hook_source="${KFOCUS_SLEEP_HOOK_SOURCE:-/usr/lib/kfocus/conf/usr_lib_systemd_system-sleep_zsleep-kfocus}"
+hook_file="${KFOCUS_SLEEP_HOOK_FILE:-/usr/lib/systemd/system-sleep/zsleep-kfocus}"
+
+source "$common_lib"
+config_code="$(_cm2EchoModelStrFn config_code)"
+
+# Same model selection as the Debian kfocus-hw postinst
+case "$config_code" in
+    default|xeg2|xeg3|arg1|m2g4|m2g5|zrg1|m2g6)
+        ;;
+    *)
+        if [ -f "$hook_file" ] && grep -q "^_baseName='zsleep-kfocus';" "$hook_file"; then
+            rm -f "$hook_file"
+        fi
+        exit 0
+        ;;
+esac
+
+if [ ! -f "$hook_source" ]; then
+    echo "Missing sleep hook: $hook_source" >&2
+    exit 1
+fi
+
+# A copy is installed instead of a symlink so that SELinux labels it bin_t,
+# which systemd-sleep is allowed to execute; the lib_t source is not.
+install -Dpm 0755 "$hook_source" "$hook_file"
+restorecon "$hook_file" >/dev/null 2>&1 || true
